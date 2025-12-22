@@ -1,0 +1,202 @@
+﻿{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Dashboard | IELTS Progress Tracker{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+
+    <!-- Header -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h1 class="h2 fw-bold">Dashboard</h1>
+            <p class="text-muted">Welcome back, {{ user.username }}! Track your IELTS journey here.</p>
+        </div>
+        <div>
+            <a href="#" class="btn btn-outline-primary">
+                <i class="fas fa-download me-2"></i> Export Progress
+            </a>
+        </div>
+    </div>
+
+    <!-- Stats Cards -->
+    <div class="row g-3 mb-4">
+        <div class="col-md-3">
+            <div class="card shadow-sm text-center">
+                <div class="card-body">
+                    <h6 class="text-muted">Tests Taken</h6>
+                    <h3 class="fw-bold">{{ total_tests }}</h3>
+                    <small class="text-success">{{ tests_this_week }} this week</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card shadow-sm text-center">
+                <div class="card-body">
+                    <h6 class="text-muted">Avg. Reading</h6>
+                    <h3 class="fw-bold text-primary">{{ avg_reading|default:"-" }}</h3>
+                    <small>Target: {{ target_reading }}</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card shadow-sm text-center">
+                <div class="card-body">
+                    <h6 class="text-muted">Avg. Listening</h6>
+                    <h3 class="fw-bold text-success">{{ avg_listening|default:"-" }}</h3>
+                    <small>Target: {{ target_listening }}</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card shadow-sm text-center">
+                <div class="card-body">
+                    <h6 class="text-muted">Study Hours</h6>
+                    <h3 class="fw-bold text-warning">{{ study_hours }}</h3>
+                    <small>{{ streak_days }}-day streak</small>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Quick Actions -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card shadow-sm">
+                <div class="card-header">
+                    <h5 class="mb-0">Quick Actions</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row g-3">
+                        <div class="col-md-4">
+                            <a href="#" class="btn btn-primary w-100">
+                                <i class="fas fa-book me-2"></i> Take Reading Test
+                            </a>
+                        </div>
+                        <div class="col-md-4">
+                            <a href="#" class="btn btn-success w-100">
+                                <i class="fas fa-headphones me-2"></i> Take Listening Test
+                            </a>
+                        </div>
+                        <div class="col-md-4">
+                            <a href="#" class="btn btn-warning w-100">
+                                <i class="fas fa-pen-fancy me-2"></i> Practice Writing
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Progress Bars -->
+    <div class="row mb-4">
+        <div class="col-md-4 mb-3">
+            <h6>Reading Target Progress</h6>
+            <div class="progress">
+                <div class="progress-bar bg-primary" style="width: {% widthratio avg_reading target_reading 100 %}%"></div>
+            </div>
+            <small>{{ avg_reading|default:"0" }}/{{ target_reading }}</small>
+        </div>
+        <div class="col-md-4 mb-3">
+            <h6>Writing Practice Progress</h6>
+            <div class="progress">
+                <div class="progress-bar bg-warning" style="width: {% widthratio writing_count target_writing_essays 100 %}%"></div>
+            </div>
+            <small>{{ writing_count|default:"0" }}/{{ target_writing_essays }}</small>
+        </div>
+    </div>
+
+    <!-- Recent Activity Table -->
+    <div class="card shadow-sm mb-4">
+        <div class="card-header d-flex justify-content-between align-items-center">
+            <h5 class="mb-0">Recent Activity</h5>
+            <a href="#" class="btn btn-sm btn-outline-primary">View All</a>
+        </div>
+        <div class="card-body table-responsive">
+            {% if recent_attempts %}
+            <table class="table table-hover align-middle">
+                <thead>
+                    <tr>
+                        <th>Module</th>
+                        <th>Test</th>
+                        <th>Score</th>
+                        <th>Band</th>
+                        <th>Date</th>
+                        <th>Action</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for attempt in recent_attempts %}
+                    <tr>
+                        <td><span class="badge bg-{{ attempt.module_color }}">{{ attempt.module }}</span></td>
+                        <td>{{ attempt.test }}</td>
+                        <td>{{ attempt.score }}</td>
+                        <td><span class="badge bg-dark">{{ attempt.band_score }}</span></td>
+                        <td>{{ attempt.date|date:"M d, Y" }}</td>
+                        <td>
+                            <a href="{{ attempt.review_url }}" class="btn btn-sm btn-outline-primary">
+                                <i class="fas fa-eye"></i> Review
+                            </a>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+            {% else %}
+            <div class="text-center py-4">
+                <i class="fas fa-clipboard-list fa-3x text-muted mb-3"></i>
+                <h5>No tests taken yet</h5>
+                <p class="text-muted">Start your IELTS journey now!</p>
+                <a href="#" class="btn btn-primary">Take Your First Test</a>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+
+</div>
+
+{% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+// Dynamic Chart.js for Band Score Progress
+const ctx = document.getElementById('progressChart')?.getContext('2d');
+if (ctx) {
+    new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: ['Week 1','Week 2','Week 3','Week 4','Week 5','Week 6'],
+            datasets: [
+                {
+                    label: 'Reading',
+                    data: [6.5,7,7,7.5,7.5,8], // Can make dynamic in future
+                    borderColor: '#0d6efd',
+                    backgroundColor: 'rgba(13,110,253,0.1)',
+                    tension: 0.3, fill: true
+                },
+                {
+                    label: 'Listening',
+                    data: [7,7.5,7.5,8,8,8.5],
+                    borderColor: '#198754',
+                    backgroundColor: 'rgba(25,135,84,0.1)',
+                    tension: 0.3, fill: true
+                },
+                {
+                    label: 'Writing',
+                    data: [6,6,6.5,6.5,7,7],
+                    borderColor: '#ffc107',
+                    backgroundColor: 'rgba(255,193,7,0.1)',
+                    tension: 0.3, fill: true
+                }
+            ]
+        },
+        options: {
+            responsive:true,
+            plugins: { legend: { position:'top' } },
+            scales: { y: { min:5, max:9, title:{display:true,text:'Band Score'} } }
+        }
+    });
+}
+</script>
+{% endblock %}
+{% endblock %}

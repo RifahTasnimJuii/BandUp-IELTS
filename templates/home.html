@@ -1,0 +1,164 @@
+﻿{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}IELTS Simulator | Smart Practice, Real Results{% endblock %}
+
+{% block content %}
+
+<!-- HERO SECTION -->
+<section class="py-5 mb-5">
+    <div class="row align-items-center">
+        <div class="col-lg-6">
+            <h1 class="display-5 fw-bold mb-3">
+                Practice IELTS the <span class="text-primary">Smart Way</span>
+            </h1>
+            <p class="lead text-muted mb-4">
+                Realistic IELTS practice with data-driven performance tracking
+                aligned to official band descriptors.
+            </p>
+
+            <div class="d-flex gap-3">
+                {% if user.is_authenticated %}
+                    <a href="{% url 'dashboard' %}" class="btn btn-primary btn-lg">
+                        Go to Dashboard
+                    </a>
+                {% else %}
+                    <a href="{% url 'register' %}" class="btn btn-primary btn-lg">
+                        Start Free Practice
+                    </a>
+                    <a href="{% url 'login' %}" class="btn btn-outline-primary btn-lg">
+                        Login
+                    </a>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- DYNAMIC STATS CARD -->
+        <div class="col-lg-6">
+            <div class="card shadow-lg border-0">
+                <div class="card-body p-4">
+                    <h5 class="fw-bold mb-4 text-center">Your Current Band Overview</h5>
+
+                    <!-- Reading -->
+                    <div class="mb-3">
+                        <div class="d-flex justify-content-between">
+                            <span>Reading</span>
+                            <strong>{{ avg_reading }}</strong>
+                        </div>
+                        <div class="progress" style="height:8px;">
+                            <div class="progress-bar bg-primary"
+                                 style="width: {{ avg_reading|default:0|floatformat:1|add:'0' }}0%">
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Listening -->
+                    <div class="mb-3">
+                        <div class="d-flex justify-content-between">
+                            <span>Listening</span>
+                            <strong>{{ avg_listening }}</strong>
+                        </div>
+                        <div class="progress" style="height:8px;">
+                            <div class="progress-bar bg-success"
+                                 style="width: {{ avg_listening|default:0|floatformat:1|add:'0' }}0%">
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Writing -->
+                    <div>
+                        <div class="d-flex justify-content-between">
+                            <span>Writing</span>
+                            <strong>{{ avg_writing }}</strong>
+                        </div>
+                        <div class="progress" style="height:8px;">
+                            <div class="progress-bar bg-warning"
+                                 style="width: {{ avg_writing|default:0|floatformat:1|add:'0' }}0%">
+                            </div>
+                        </div>
+                    </div>
+
+                    <p class="text-muted text-center mt-3 mb-0">
+                        Based on your latest practice data
+                    </p>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- PERFORMANCE SNAPSHOT -->
+<section class="py-5 bg-light rounded-3 mb-5">
+    <div class="container">
+        <div class="text-center mb-4">
+            <h2 class="fw-bold">Performance Snapshot</h2>
+            <p class="text-muted">
+                Automatically generated from your IELTS practice history
+            </p>
+        </div>
+
+        <div class="row justify-content-center g-4">
+            {% for item in performance_snapshot %}
+            <div class="col-md-3">
+                <div class="card border-0 shadow-sm text-center">
+                    <div class="card-body p-4">
+                        <h6 class="fw-bold">{{ item.module }}</h6>
+                        <div class="display-6 fw-bold text-{{ item.color }}">
+                            {{ item.band }}
+                        </div>
+                        <small class="text-muted">Current Band</small>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+</section>
+
+<!-- USER REVIEWS -->
+{% if reviews %}
+<section class="py-5 mb-5">
+    <div class="container">
+        <div class="text-center mb-4">
+            <h2 class="fw-bold">What Users Are Saying</h2>
+            <p class="text-muted">Verified feedback from real learners</p>
+        </div>
+
+        <div class="row g-4">
+            {% for review in reviews %}
+            <div class="col-md-4">
+                <div class="card border-0 shadow-sm h-100">
+                    <div class="card-body p-4">
+                        <h6 class="fw-bold mb-1">{{ review.user.username }}</h6>
+                        <div class="mb-2">
+                            {% for i in "12345"|make_list %}
+                                {% if forloop.counter <= review.rating %}
+                                    <span class="text-warning">★</span>
+                                {% else %}
+                                    <span class="text-muted">☆</span>
+                                {% endif %}
+                            {% endfor %}
+                        </div>
+                        <p class="text-muted">{{ review.comment|truncatewords:25 }}</p>
+                        <small class="text-muted">
+                            {{ review.created_at|date:"M Y" }}
+                        </small>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+</section>
+{% endif %}
+
+<!-- CALL TO ACTION -->
+<section class="py-5 text-center">
+    <h2 class="fw-bold mb-3">Ready to Improve Your Band Score?</h2>
+    <p class="lead mb-4">Practice smarter with real performance insights</p>
+    <a href="{% url 'register' %}" class="btn btn-primary btn-lg px-5">
+        Start Practicing Now
+    </a>
+</section>
+
+{% endblock %}

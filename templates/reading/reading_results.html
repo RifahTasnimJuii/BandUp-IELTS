@@ -1,0 +1,163 @@
+﻿{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Reading Results | IELTS Simulator{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+    <!-- Breadcrumb -->
+    <nav aria-label="breadcrumb" class="mb-4">
+        <ol class="breadcrumb">
+            <li class="breadcrumb-item"><a href="{% url 'home' %}">Home</a></li>
+            <li class="breadcrumb-item"><a href="{% url 'tests_list' %}">Reading Tests</a></li>
+            <li class="breadcrumb-item active">Results</li>
+        </ol>
+    </nav>
+
+    <!-- Results Header -->
+    <div class="text-center mb-5">
+        <div class="mb-4">
+            <span class="badge bg-primary fs-6 mb-3">
+                {{ attempt.test.get_test_type_display }}
+            </span>
+            <h1 class="display-6 fw-bold mb-2">Reading Test Completed</h1>
+            <p class="lead text-muted">
+                {{ attempt.test.title }}
+            </p>
+            <p class="text-muted">
+                Completed on {{ attempt.completed_at|date:"F d, Y" }} at {{ attempt.completed_at|time:"g:i A" }}
+            </p>
+        </div>
+    </div>
+
+    <!-- Score Summary -->
+    <div class="row justify-content-center mb-5">
+        <div class="col-lg-8">
+            <div class="card border-0 shadow-lg">
+                <div class="card-body p-5">
+                    <div class="row align-items-center">
+                        <!-- Band Score -->
+                        <div class="col-md-6 text-center mb-4 mb-md-0">
+                            <div class="mb-3">
+                                <h6 class="text-uppercase text-muted mb-1">Your Band Score</h6>
+                                <div class="display-1 fw-bold text-primary">{{ attempt.band_score }}</div>
+                                <p class="text-muted">IELTS Band</p>
+                            </div>
+                        </div>
+                        
+                        <!-- Detailed Stats -->
+                        <div class="col-md-6">
+                            <div class="mb-4">
+                                <div class="d-flex justify-content-between mb-2">
+                                    <span class="text-muted">Raw Score</span>
+                                    <strong>{{ attempt.score }}/{{ attempt.total_questions }}</strong>
+                                </div>
+                                <div class="progress" style="height: 10px;">
+                                    <div class="progress-bar bg-primary" 
+                                         style="width: {% widthratio attempt.score attempt.total_questions 100 %}%">
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="mb-4">
+                                <div class="d-flex justify-content-between mb-2">
+                                    <span class="text-muted">Time Taken</span>
+                                    <strong>{{ attempt.time_taken|divisibleby:60|yesno:"minutes,seconds" }}</strong>
+                                </div>
+                                <div class="text-muted small">
+                                    {{ attempt.time_taken }} seconds 
+                                    ({% widthratio attempt.time_taken 3600 100 %}% of allotted time)
+                                </div>
+                            </div>
+                            
+                            <div class="mb-0">
+                                <div class="d-flex justify-content-between mb-2">
+                                    <span class="text-muted">Accuracy</span>
+                                    <strong>{% widthratio attempt.score attempt.total_questions 100 %}%</strong>
+                                </div>
+                                <div class="progress" style="height: 10px;">
+                                    <div class="progress-bar bg-success" 
+                                         style="width: {% widthratio attempt.score attempt.total_questions 100 %}%">
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Action Buttons -->
+    <div class="row justify-content-center mb-5">
+        <div class="col-lg-8">
+            <div class="card border-0 shadow-sm">
+                <div class="card-body p-4">
+                    <div class="row g-3">
+                        <div class="col-md-4">
+                            <a href="{% url 'reading_review' attempt.id %}" 
+                               class="btn btn-primary w-100 py-3">
+                                <i class="fas fa-eye me-2"></i>Review Answers
+                            </a>
+                        </div>
+                        <div class="col-md-4">
+                            <a href="{% url 'reading_test' attempt.test.id %}" 
+                               class="btn btn-outline-primary w-100 py-3">
+                                <i class="fas fa-redo me-2"></i>Retake Test
+                            </a>
+                        </div>
+                        <div class="col-md-4">
+                            <a href="{% url 'tests_list' %}"
+                               class="btn btn-outline-secondary w-100 py-3">
+                                <i class="fas fa-list me-2"></i>More Tests
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Performance Insights -->
+    <div class="row justify-content-center">
+        <div class="col-lg-8">
+            <div class="card border-0 shadow-sm">
+                <div class="card-header bg-white">
+                    <h5 class="mb-0 fw-bold">
+                        <i class="fas fa-chart-line me-2 text-primary"></i>Performance Insights
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="row g-4">
+                        <div class="col-md-6">
+                            <div class="text-center p-3">
+                                <div class="icon-circle bg-primary bg-opacity-10 text-primary mx-auto mb-3">
+                                    <i class="fas fa-bullseye"></i>
+                                </div>
+                                <h6>Band Score Analysis</h6>
+                                <p class="text-muted small">
+                                    Your score of {{ attempt.band_score }} places you in the 
+                                    {% if attempt.band_score >= 8 %}Expert{% elif attempt.band_score >= 7 %}Proficient{% elif attempt.band_score >= 6 %}Competent{% else %}Developing{% endif %} 
+                                    range.
+                                </p>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="text-center p-3">
+                                <div class="icon-circle bg-success bg-opacity-10 text-success mx-auto mb-3">
+                                    <i class="fas fa-tachometer-alt"></i>
+                                </div>
+                                <h6>Time Management</h6>
+                                <p class="text-muted small">
+                                    You used {{ attempt.time_taken }} seconds of the 3600 available.
+                                    {% if attempt.time_taken < 1800 %}Good pacing!{% elif attempt.time_taken < 3000 %}Moderate pacing.{% else %}Consider improving speed.{% endif %}
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

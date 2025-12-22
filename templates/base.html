@@ -1,0 +1,176 @@
+﻿<!DOCTYPE html>
+{% load static %}
+<html lang="en" data-bs-theme="light">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+
+    <title>{% block title %}IELTS Pro Simulator | Academic & General Training{% endblock %}</title>
+
+    <!-- SEO & Social -->
+    <meta name="description" content="IELTS Pro Simulator – Practice Academic & General Training with realistic tests, band estimation, and performance analytics.">
+    <meta name="keywords" content="IELTS practice, IELTS simulator, IELTS Academic, IELTS General Training">
+    <meta name="author" content="IELTS Pro">
+    <meta property="og:title" content="IELTS Pro Simulator">
+    <meta property="og:description" content="A smart IELTS preparation platform with realistic test simulation.">
+
+    <!-- Bootstrap 5 -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+    <!-- Google Font -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+
+    <!-- Custom CSS -->
+    <link rel="stylesheet" href="{% static 'css/custom.css' %}">
+
+    {% block extra_css %}{% endblock %}
+</head>
+
+<body class="d-flex flex-column min-vh-100">
+
+<!-- NAVBAR -->
+<nav class="navbar navbar-expand-lg bg-white border-bottom fixed-top">
+    <div class="container">
+        <a class="navbar-brand fw-semibold" href="{% url 'home' %}">
+            BandUp<span class="text-primary">IELTS</span>
+        </a>
+
+        <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+            <span class="navbar-toggler-icon"></span>
+        </button>
+
+        <div class="collapse navbar-collapse" id="navbarNav">
+            <ul class="navbar-nav me-auto">
+                <li class="nav-item"><a class="nav-link" href="{% url 'tests_list' %}">Reading</a></li>
+                <li class="nav-item"><a class="nav-link" href="{% url 'listening_tests' %}">Listening</a></li>
+                <li class="nav-item"><a class="nav-link" href="#">Writing</a></li>
+                {% if user.is_authenticated %}
+                <li class="nav-item">
+                    <a class="nav-link fw-medium" href="{% url 'dashboard' %}">
+                        <i class="fas fa-chart-line me-1"></i> Dashboard
+                    </a>
+                </li>
+                {% endif %}
+            </ul>
+
+            <div class="d-flex align-items-center gap-2">
+                {% if user.is_authenticated %}
+                <div class="dropdown">
+                    <button class="btn btn-sm btn-outline-secondary dropdown-toggle" data-bs-toggle="dropdown">
+                        <i class="fas fa-user-circle me-1"></i> {{ user.username }}
+                    </button>
+                    <ul class="dropdown-menu dropdown-menu-end">
+                        <li><a class="dropdown-item" href="{% url 'dashboard' %}">Dashboard</a></li>
+                        <li><a class="dropdown-item" href="#">Profile</a></li>
+                        <li><hr class="dropdown-divider"></li>
+                        <li>
+                            <a class="dropdown-item text-danger" href="{% url 'logout' %}">
+                                Logout
+                            </a>
+                        </li>
+                    </ul>
+                </div>
+                {% else %}
+                <a href="{% url 'login' %}" class="btn btn-sm btn-outline-primary">Login</a>
+                <a href="{% url 'register' %}" class="btn btn-sm btn-primary">Register</a>
+                {% endif %}
+
+                <button class="btn btn-sm btn-outline-secondary" id="themeToggle" title="Toggle theme">
+                    <i class="fas fa-moon"></i>
+                </button>
+            </div>
+        </div>
+    </div>
+</nav>
+
+<!-- MAIN CONTENT -->
+<main class="flex-grow-1 mt-5 pt-4">
+    <div class="container">
+
+        {% if messages %}
+        {% for message in messages %}
+        <div class="alert alert-{{ message.tags }} alert-dismissible fade show">
+            {{ message }}
+            <button class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+        {% endfor %}
+        {% endif %}
+
+        {% block content %}{% endblock %}
+    </div>
+</main>
+
+<!-- FOOTER -->
+<footer class="bg-dark mt-auto py-5">
+    <div class="container">
+        <div class="row gy-4">
+            <div class="col-md-4">
+                <h6 class="text-white">IELTS Pro</h6>
+                <p class="small text-light">
+                    Smart IELTS Academic & General Training preparation with realistic simulations.
+                </p>
+            </div>
+
+            <div class="col-md-2">
+                <h6 class="text-white">Modules</h6>
+                <ul class="list-unstyled small">
+                    <li><a href="{% url 'tests_list' %}" class="text-light text-decoration-none">Reading</a></li>
+                    <li><a href="{% url 'listening_tests' %}" class="text-light text-decoration-none">Listening</a></li>
+                    <li><a href="#" class="text-light text-decoration-none">Writing</a></li>
+                </ul>
+            </div>
+
+            <div class="col-md-3">
+                <h6 class="text-white">Resources</h6>
+                <ul class="list-unstyled small">
+                    <li><a href="#" class="text-light text-decoration-none">Band Calculator</a></li>
+                    <li><a href="#" class="text-light text-decoration-none">Study Planner</a></li>
+                    <li><a href="#" class="text-light text-decoration-none">Test Tips</a></li>
+                </ul>
+            </div>
+
+            <div class="col-md-3">
+                <h6 class="text-white">Disclaimer</h6>
+                <p class="small text-secondary">
+                    Not affiliated with British Council, IDP, or Cambridge.
+                </p>
+            </div>
+        </div>
+
+        <hr class="border-secondary my-4">
+
+        <div class="text-center small text-secondary">
+            © 2024 IELTS Pro Simulator — Academic Portfolio Project
+        </div>
+    </div>
+</footer>
+
+
+<!-- JS -->
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+<script src="{% static 'js/custom.js' %}"></script>
+
+{% block extra_js %}{% endblock %}
+
+<script>
+    const toggle = document.getElementById('themeToggle');
+    const html = document.documentElement;
+    const icon = toggle.querySelector('i');
+
+    const savedTheme = localStorage.getItem('theme') || 'light';
+    html.setAttribute('data-bs-theme', savedTheme);
+    icon.className = savedTheme === 'dark' ? 'fas fa-sun' : 'fas fa-moon';
+
+    toggle.addEventListener('click', () => {
+        const theme = html.getAttribute('data-bs-theme') === 'dark' ? 'light' : 'dark';
+        html.setAttribute('data-bs-theme', theme);
+        localStorage.setItem('theme', theme);
+        icon.className = theme === 'dark' ? 'fas fa-sun' : 'fas fa-moon';
+    });
+</script>
+
+</body>
+</html>
