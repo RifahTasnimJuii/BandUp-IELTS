@@ -1,5 +1,5 @@
 from rest_framework import viewsets
-from rest_framework.permissions import IsAuthenticated
+from rest_framework.permissions import IsAuthenticated, AllowAny
 
 from apps.common.permissions import IsAdminUser, IsContentEditor
 from .models import AudioAsset, Passage, Section, Test
@@ -13,15 +13,22 @@ class AdminTestViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated]
 
     def get_permissions(self):
+      
         if self.action in ['list', 'retrieve']:
-            return [IsAuthenticated()]
+            return [AllowAny()]
+        
         return [IsAuthenticated(), IsAdminUser()]
 
     def get_queryset(self):
         queryset = super().get_queryset()
         if self.action in ['list', 'retrieve']:
-            if self.request.user.is_superuser or self.request.user.role in ['admin', 'superadmin', 'content_editor']:
+            
+            if self.request.user.is_authenticated and (
+                self.request.user.is_superuser or 
+                self.request.user.role in ['admin', 'superadmin', 'content_editor']
+            ):
                 return queryset
+            
             return queryset.filter(is_published=True)
         return queryset
 
@@ -31,14 +38,31 @@ class AdminSectionViewSet(viewsets.ModelViewSet):
     serializer_class = SectionSerializer
     permission_classes = [IsAuthenticated, IsAdminUser]
 
+    def get_permissions(self):
+        
+        if self.action in ['list', 'retrieve']:
+            return [AllowAny()]
+        return [IsAuthenticated(), IsAdminUser()]
+
 
 class AdminPassageViewSet(viewsets.ModelViewSet):
     queryset = Passage.objects.all()
     serializer_class = PassageSerializer
     permission_classes = [IsAuthenticated, IsAdminUser]
 
+    def get_permissions(self):
+        
+        if self.action in ['list', 'retrieve']:
+            return [AllowAny()]
+        return [IsAuthenticated(), IsAdminUser()]
+
 
 class AdminAudioAssetViewSet(viewsets.ModelViewSet):
     queryset = AudioAsset.objects.all()
     serializer_class = AudioAssetSerializer
     permission_classes = [IsAuthenticated, IsAdminUser]
+
+    def get_permissions(self):
+        if self.action in ['list', 'retrieve']:
+            return [AllowAny()]
+        return [IsAuthenticated(), IsAdminUser()]

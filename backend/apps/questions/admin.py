@@ -1,4 +1,6 @@
+from django import forms
 from django.contrib import admin
+from django.db import models
 
 from .models import AnswerOption, CorrectAnswerRule, Question, QuestionGroup
 
@@ -35,28 +37,44 @@ class QuestionInline(admin.StackedInline):
 
 @admin.register(QuestionGroup)
 class QuestionGroupAdmin(admin.ModelAdmin):
-    list_display = ('title', 'section', 'order', 'is_required')
-    list_filter = ('is_required',)
-    search_fields = ('title', 'instruction')
+    list_display = ('title', 'section', 'order', 'is_required', 'question_count')
+    list_filter = ('is_required', 'section__section_type')
+    search_fields = ('title', 'instruction', 'section__title')
     inlines = [QuestionInline]
+    readonly_fields = ('question_count',)
+
+    @admin.display(description='Questions')
+    def question_count(self, obj):
+        return obj.questions.count()
 
 
 @admin.register(Question)
 class QuestionAdmin(admin.ModelAdmin):
     list_display = ('prompt', 'question_group', 'type', 'order', 'points', 'is_active')
-    list_filter = ('type', 'is_active')
-    search_fields = ('prompt', 'instruction', 'difficulty')
+    list_filter = ('type', 'is_active', 'question_group__section__section_type')
+    search_fields = ('prompt', 'instruction', 'difficulty', 'question_group__title')
     inlines = [AnswerOptionInline, CorrectAnswerRuleInline]
+    formfield_overrides = {
+        models.JSONField: {'widget': forms.Textarea(attrs={'rows': 8, 'class': 'vLargeTextField'})}
+    }
+    fieldsets = (
+        ('Question content', {
+            'fields': ('question_group', 'type', 'prompt', 'instruction', 'order', 'points', 'difficulty', 'tags')
+        }),
+        ('Validation', {
+            'fields': ('options_json', 'correct_answer_json', 'validation_rules_json', 'explanation', 'is_active')
+        }),
+    )
 
 
 @admin.register(AnswerOption)
 class AnswerOptionAdmin(admin.ModelAdmin):
     list_display = ('question', 'order', 'text')
-    search_fields = ('text',)
+    search_fields = ('text', 'question__prompt')
 
 
 @admin.register(CorrectAnswerRule)
 class CorrectAnswerRuleAdmin(admin.ModelAdmin):
     list_display = ('question', 'rule_type', 'is_active')
     list_filter = ('rule_type', 'is_active')
-    search_fields = ('metadata',)
+    search_fields = ('question__prompt', 'metadata')

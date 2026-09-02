@@ -52,9 +52,10 @@ export default function LoginPage() {
       let message = 'Unable to login. Please try again.';
       if (axios.isAxiosError(error)) {
         if (error.response) {
+          const responseData = error.response.data as Record<string, unknown> | undefined;
           message =
-            (error.response.data as Record<string, any>)?.detail ||
-            error.response.data?.message ||
+            (typeof responseData?.detail === 'string' ? responseData.detail : '') ||
+            (typeof responseData?.message === 'string' ? responseData.message : '') ||
             `Request failed with status ${error.response.status}`;
         } else {
           message = error.message || 'Network Error';

@@ -11,3 +11,8 @@ body {
   background: #f8fafc;
   color: #0f172a;
 }
+
+.dark body {
+  background: #020817;
+  color: #e2e8f0;
+}

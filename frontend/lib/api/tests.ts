@@ -10,9 +10,9 @@ export interface TestCatalogItem {
 }
 
 export function getTests() {
-  return api.get<TestCatalogItem[]>('/tests/tests/').then((response) => response.data);
+  return api.get<TestCatalogItem[]>('/tests/').then((response) => response.data);
 }
 
 export function getTestDetail(slug: string) {
-  return api.get<TestCatalogItem>(`/tests/tests/${slug}/`).then((response) => response.data);
+  return api.get<TestCatalogItem>(`/tests/${slug}/`).then((response) => response.data);
 }

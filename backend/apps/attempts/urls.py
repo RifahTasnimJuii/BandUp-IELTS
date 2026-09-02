@@ -4,7 +4,7 @@ from rest_framework.routers import DefaultRouter
 from .views import AttemptStartAPIView, AttemptViewSet
 
 router = DefaultRouter()
-router.register('attempts', AttemptViewSet, basename='attempt')
+router.register('', AttemptViewSet, basename='attempt')
 
 urlpatterns = [
     path('start/', AttemptStartAPIView.as_view(), name='attempt-start'),

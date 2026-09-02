@@ -32,7 +32,7 @@ export default function TestDetailPage({ params }: TestDetailPageProps) {
       try {
         const data = await getTestDetail(slug);
         setTest(data);
-      } catch (err) {
+      } catch {
         setError('Unable to load test details.');
       } finally {
         setIsLoading(false);
@@ -57,7 +57,7 @@ export default function TestDetailPage({ params }: TestDetailPageProps) {
         },
       });
       router.push(`/exam/${response.attempt_id}`);
-    } catch (err) {
+    } catch {
       setError('Unable to start the exam attempt.');
     } finally {
       setStarting(false);

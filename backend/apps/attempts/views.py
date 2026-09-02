@@ -1,4 +1,5 @@
 from django.shortcuts import get_object_or_404
+from django.core.files.storage import default_storage
 from django.utils import timezone
 from rest_framework import status, viewsets
 from rest_framework.decorators import action
@@ -9,7 +10,11 @@ from rest_framework.views import APIView
 from apps.accounts.models import User
 from apps.common.permissions import IsAdminUser
 from apps.questions.models import Question
+from apps.speaking.models import SpeakingAudioSubmission
+from django.conf import settings
+from apps.writing.models import WritingSubmission
 from apps.test_catalog.models import Test
+from apps.writing.models import WritingSubmission
 from .models import AnswerResponse, Attempt, ExamViolationEvent
 from .serializers import (
     AnswerResponseSaveSerializer,
@@ -52,14 +57,84 @@ class AttemptViewSet(viewsets.ModelViewSet):
             data['remaining_seconds'] = int((attempt.expires_at - timezone.now()).total_seconds())
         return Response(data)
 
+    @action(detail=True, methods=['get'], url_path='paper')
+    def paper(self, request, pk=None):
+        attempt = get_object_or_404(self.get_queryset().select_related('test'), pk=pk)
+        sections = []
+        for section in attempt.test.sections.prefetch_related('passages', 'audio_assets', 'question_groups__questions').all():
+            passage = section.passages.first()
+            audio = section.audio_assets.filter(is_active=True).first()
+            sections.append({
+                'id': str(section.id),
+                'title': section.title,
+                'section_type': section.section_type,
+                'order': section.order,
+                'duration_seconds': section.duration_seconds,
+                'instruction_text': section.instruction_text,
+                'passage': {
+                    'id': str(passage.id),
+                    'title': passage.title,
+                    'body_text': passage.body_text,
+                    'source_note': passage.source_note,
+                } if passage else None,
+                'audio': {
+                    'id': str(audio.id),
+                    'title': audio.title,
+                    'audio_file': audio.audio_file.url if audio.audio_file else None,
+                    'duration_seconds': audio.duration_seconds,
+                    'playback_policy': audio.playback_policy,
+                } if audio else None,
+                'question_groups': [
+                    {
+                        'id': str(group.id),
+                        'title': group.title,
+                        'instruction': group.instruction,
+                        'order': group.order,
+                        'questions': [
+                            {
+                                'id': str(question.id),
+                                'order': question.order,
+                                'type': question.type,
+                                'prompt': question.prompt,
+                                'instruction': question.instruction,
+                                'points': question.points,
+                                'options': [
+                                    {'id': str(option.id), 'order': option.order, 'text': option.text}
+                                    for option in question.answer_options.all()
+                                ] or [
+                                    {'id': str(index), 'order': index, 'text': option}
+                                    for index, option in enumerate(question.options_json or [], 1)
+                                    if isinstance(option, str)
+                                ],
+                                'validation_rules': question.validation_rules_json,
+                                'visual_json': question.options_json if isinstance(question.options_json, dict) else None,
+                            }
+                            for question in group.questions.all()
+                        ],
+                    }
+                    for group in section.question_groups.all()
+                ],
+            })
+        return Response({
+            'attempt_id': str(attempt.id),
+            'test': {'id': str(attempt.test.id), 'title': attempt.test.title, 'slug': attempt.test.slug},
+            'server_time': timezone.now(),
+            'expires_at': attempt.expires_at,
+            'sections': sections,
+        })
+
     @action(detail=True, methods=['post'], url_path='autosave')
     def autosave(self, request, pk=None):
         attempt = get_object_or_404(self.get_queryset(), pk=pk)
         serializer = AnswerResponseSaveSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
+        question = get_object_or_404(
+            Question.objects.filter(question_group__section__test=attempt.test),
+            pk=serializer.validated_data['question_id'],
+        )
         answer_response, created = AnswerResponse.objects.update_or_create(
             attempt=attempt,
-            question=Question.objects.get(pk=serializer.validated_data['question_id']),
+            question=question,
             defaults={
                 'value_json': serializer.validated_data.get('value_json', {}),
                 'answer_text': serializer.validated_data.get('answer_text'),
@@ -108,6 +183,8 @@ class AttemptViewSet(viewsets.ModelViewSet):
         attempt.ended_at = now
         attempt.save(update_fields=['state', 'submitted_at', 'ended_at'])
 
+        self._create_writing_submissions(attempt)
+
         task_grade_and_finalize_attempt.delay(str(attempt.id))
         return Response(
             {
@@ -116,6 +193,57 @@ class AttemptViewSet(viewsets.ModelViewSet):
             },
             status=status.HTTP_202_ACCEPTED,
         )
+
+    @staticmethod
+    def _create_writing_submissions(attempt):
+        for question in Question.objects.filter(
+            question_group__section__test=attempt.test,
+            type=Question.QuestionType.WRITING_PROMPT,
+        ):
+            answer = attempt.answer_responses.filter(question=question).first()
+            answer_text = (answer.answer_text if answer else '') or ''
+            if not answer_text.strip():
+                continue
+            task_number = question.correct_answer_json.get('task_number', question.order) if isinstance(question.correct_answer_json, dict) else question.order
+            WritingSubmission.objects.update_or_create(
+                attempt=attempt,
+                question=question,
+                defaults={
+                    'task_number': task_number,
+                    'prompt': question.prompt,
+                    'answer_text': answer_text,
+                    'evaluation_status': WritingSubmission.EvaluationStatus.PENDING,
+                },
+            )
+
+    @action(detail=True, methods=['post'], url_path='speaking/upload')
+    def speaking_upload(self, request, pk=None):
+        attempt = get_object_or_404(self.get_queryset(), pk=pk)
+        question = get_object_or_404(
+            Question.objects.filter(question_group__section__test=attempt.test, type=Question.QuestionType.SPEAKING_PROMPT),
+            pk=request.data.get('question_id'),
+        )
+        audio = request.FILES.get('audio')
+        if audio is None:
+            return Response({'detail': 'An audio file is required.'}, status=status.HTTP_400_BAD_REQUEST)
+        path = default_storage.save(f'speaking_submissions/{attempt.id}/{audio.name}', audio)
+        prompt_data = question.correct_answer_json if isinstance(question.correct_answer_json, dict) else {}
+        submission, _ = SpeakingAudioSubmission.objects.update_or_create(
+            attempt=attempt,
+            question=question,
+            defaults={
+                'part_number': question.order,
+                'prompt': question.prompt,
+                'storage_key': path,
+                'audio_file_url_method': SpeakingAudioSubmission.AudioFileUrlMethod.PRIVATE_MEDIA,
+                'duration_seconds': int(prompt_data.get('recording_seconds', 0)),
+                'mime_type': audio.content_type or 'audio/webm',
+                'prep_seconds_allowed': int(prompt_data.get('prep_seconds', 0)),
+                'consent_given': bool(getattr(request.user.profile, 'speaking_audio_consent', False)),
+                'evaluation_status': SpeakingAudioSubmission.EvaluationStatus.PENDING_HUMAN_REVIEW if not getattr(settings, 'OPENAI_API_KEY', '') else SpeakingAudioSubmission.EvaluationStatus.PENDING,
+            },
+        )
+        return Response({'id': str(submission.id), 'status': 'Recorded', 'evaluation_status': submission.evaluation_status}, status=status.HTTP_201_CREATED)
 
 
 class AttemptStartAPIView(APIView):
@@ -150,3 +278,80 @@ class AttemptStartAPIView(APIView):
             },
             status=status.HTTP_201_CREATED,
         )
+
+
+class AttemptResultAPIView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def _serialize_feedback(self, submission):
+        if submission is None:
+            return None
+
+        ai_payload = submission.ai_feedback or {}
+        criteria = submission.criteria_scores or {}
+        return {
+            'status': submission.evaluation_status,
+            'band_score': submission.band_score,
+            'criteria_scores': criteria,
+            'strengths': ai_payload.get('strengths', submission.strengths or []),
+            'weaknesses': ai_payload.get('weaknesses', submission.weaknesses or []),
+            'improvement_suggestions': ai_payload.get('improvement_suggestions', submission.improvement_suggestions or []),
+            'feedback': ai_payload.get('feedback', '') or getattr(submission, 'prompt', ''),
+        }
+
+    def get(self, request, attempt_id):
+        attempt = get_object_or_404(Attempt.objects.select_related('test'), pk=attempt_id, user=request.user)
+
+        objective_review = []
+        for answer in attempt.answer_responses.select_related('question').all():
+            question = answer.question
+            if question.type in [Question.QuestionType.WRITING_PROMPT, Question.QuestionType.SPEAKING_PROMPT]:
+                continue
+
+            user_answer = answer.answer_text
+            if user_answer is None and answer.selected_options:
+                user_answer = answer.selected_options
+            if user_answer is None:
+                user_answer = answer.value_json if isinstance(answer.value_json, (str, list, dict)) else None
+
+            correct_answer = question.correct_answer_json
+            if isinstance(correct_answer, dict):
+                correct_answer = correct_answer.get('answer') or correct_answer.get('correct_answer') or correct_answer.get('value')
+
+            expected = question.correct_answer_json.get('answer') if isinstance(question.correct_answer_json, dict) else question.correct_answer_json
+            if question.type in [Question.QuestionType.MCQ_SINGLE, Question.QuestionType.TRUE_FALSE_NOT_GIVEN, Question.QuestionType.YES_NO_NOT_GIVEN]:
+                is_correct = bool(answer.selected_options) and str(answer.selected_options[0]).strip().lower() == str(expected).strip().lower()
+            elif question.type == Question.QuestionType.MCQ_MULTIPLE:
+                is_correct = set(map(str, answer.selected_options or [])) == set(map(str, expected or []))
+            else:
+                is_correct = bool(user_answer) and str(user_answer).strip().lower() == str(expected).strip().lower()
+
+            objective_review.append({
+                'id': str(answer.id),
+                'question_number': question.order,
+                'question_label': f'Q{question.order}',
+                'user_answer': user_answer,
+                'correct_answer': correct_answer,
+                'is_correct': is_correct,
+            })
+
+        writing_submission = attempt.writing_submissions.order_by('-submitted_at').first()
+        speaking_submission = attempt.speaking_submissions.order_by('-uploaded_at').first()
+
+        payload = {
+            'attempt_id': str(attempt.id),
+            'overall_band': float(attempt.overall_band) if attempt.overall_band is not None else None,
+            'is_review_allowed': bool(attempt.is_review_allowed),
+            'section_scores': {
+                'listening': float(attempt.listening_band) if attempt.listening_band is not None else None,
+                'reading': float(attempt.reading_band) if attempt.reading_band is not None else None,
+                'writing': float(attempt.writing_band) if attempt.writing_band is not None else None,
+                'speaking': float(attempt.speaking_band) if attempt.speaking_band is not None else None,
+            },
+            'objective_review': objective_review,
+            'writing_feedback': self._serialize_feedback(writing_submission),
+            'speaking_feedback': self._serialize_feedback(speaking_submission),
+            'status': attempt.state,
+        }
+
+        return Response(payload, status=status.HTTP_200_OK)

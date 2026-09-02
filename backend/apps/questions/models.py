@@ -35,6 +35,7 @@ class Question(UUIDModel, TimeStampedModel):
         SHORT_ANSWER = 'short_answer', 'Short Answer'
         WRITING_PROMPT = 'writing_prompt', 'Writing Prompt'
         SPEAKING_PROMPT = 'speaking_prompt', 'Speaking Prompt'
+        MAP_LABEL = 'map_label', 'Map Label'
 
     question_group = models.ForeignKey(QuestionGroup, on_delete=models.CASCADE, related_name='questions')
     type = models.CharField(max_length=32, choices=QuestionType.choices)

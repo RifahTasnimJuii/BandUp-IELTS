@@ -31,6 +31,14 @@ def calculate_question_score(question, answer_response):
     ]:
         if answer_text and _normalize_text(correct_answer.get('answer')) == answer_text:
             raw_score = points
+    elif question.type == 'map_label':
+        if answer_text and _normalize_text(correct_answer.get('answer')) == answer_text:
+            raw_score = points
+        else:
+            for rule in question.correct_answer_rules.all():
+                if _match_correct_answer_rule(answer_text, rule):
+                    raw_score = points
+                    break
     else:
         if answer_text and _normalize_text(correct_answer.get('answer')) == answer_text:
             raw_score = points

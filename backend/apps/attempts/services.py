@@ -6,6 +6,8 @@ from apps.attempts.models import Attempt, AttemptSectionState
 from apps.grading.services import calculate_question_score, calculate_section_band_score
 from apps.writing.models import WritingSubmission
 from apps.speaking.models import SpeakingAudioSubmission
+import re
+from django.conf import settings
 
 
 def lock_attempt_responses(attempt):
@@ -76,6 +78,43 @@ def _load_ai_evaluation_tasks():
     return task_evaluate_writing_submission, task_evaluate_speaking_submission
 
 
+def evaluate_writing_offline(submission):
+    words = re.findall(r"[A-Za-z']+", submission.answer_text.lower())
+    total_words = len(words)
+    unique_ratio = len(set(words)) / total_words if total_words else 0
+    sentences = [part.strip() for part in re.split(r'[.!?]+', submission.answer_text) if part.strip()]
+    average_sentence_length = total_words / len(sentences) if sentences else 0
+    minimum = 150 if submission.task_number == WritingSubmission.TaskNumber.TASK_1 else 250
+    length_score = 5.0 if total_words < minimum else 6.0
+    lexical = max(5.5, min(6.5, 6.0 + (0.5 if unique_ratio >= 0.55 else -0.5 if unique_ratio < 0.35 else 0)))
+    structure = max(5.5, min(6.5, 6.0 + (0.5 if len(sentences) >= 4 and 10 <= average_sentence_length <= 28 else -0.5)))
+    criteria = {
+        'task_achievement': length_score,
+        'coherence_cohesion': structure,
+        'lexical_resource': lexical,
+        'grammatical_range': structure,
+    }
+    band = max(4.0, min(7.0, round(sum(criteria.values()) / len(criteria) * 2) / 2))
+    submission.band_score = band
+    submission.criteria_scores = criteria
+    submission.ai_feedback = {'feedback': 'Automated provisional estimate'}
+    submission.evaluation_status = WritingSubmission.EvaluationStatus.COMPLETED
+    submission.model_name = 'offline-heuristic'
+    submission.save(update_fields=['band_score', 'criteria_scores', 'ai_feedback', 'evaluation_status', 'model_name'])
+    return submission
+
+
+def evaluate_pending_writing_submissions(attempt):
+    for submission in attempt.writing_submissions.filter(evaluation_status=WritingSubmission.EvaluationStatus.PENDING):
+        if getattr(settings, 'OPENAI_API_KEY', ''):
+            task_evaluate_writing_submission, _ = _load_ai_evaluation_tasks()
+            submission.evaluation_status = WritingSubmission.EvaluationStatus.IN_PROGRESS
+            submission.save(update_fields=['evaluation_status'])
+            task_evaluate_writing_submission.delay(str(submission.id))
+        else:
+            evaluate_writing_offline(submission)
+
+
 def _dispatch_ai_evaluations(attempt):
     task_evaluate_writing_submission, task_evaluate_speaking_submission = _load_ai_evaluation_tasks()
     dispatched = 0
@@ -133,6 +172,9 @@ def finalize_attempt_after_ai_evaluations(attempt_id):
 def grade_and_finalize_attempt(attempt_id):
     attempt = Attempt.objects.select_related('test').get(pk=attempt_id)
     lock_attempt_responses(attempt)
+    from apps.attempts.views import AttemptViewSet
+    AttemptViewSet._create_writing_submissions(attempt)
+    evaluate_pending_writing_submissions(attempt)
     grade_objective_sections(attempt)
     dispatched = _dispatch_ai_evaluations(attempt)
 

@@ -1,4 +1,5 @@
 import api from '@/lib/api';
+import type { User } from '@/store/useAuthStore';
 
 export interface LoginPayload {
   email: string;
@@ -12,7 +13,7 @@ export interface RegisterPayload {
   password_confirm: string;
 }
 
-export interface AuthResponse<TUser = any> {
+export interface AuthResponse<TUser = User> {
   access: string;
   refresh: string;
   user: TUser;

@@ -1,6 +1,5 @@
 import axios from 'axios';
 import type { InternalAxiosRequestConfig } from 'axios';
-import { getAuthState } from '@/store/useAuthStore';
 
 const api = axios.create({
   baseURL: process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000/api',
@@ -9,19 +8,27 @@ const api = axios.create({
   },
 });
 
-api.interceptors.request.use((config: InternalAxiosRequestConfig) => {
-  const authState = getAuthState();
+api.interceptors.request.use(
+  (config: InternalAxiosRequestConfig) => {
+    
+    let accessToken: string | null = null;
+    try {
+      const raw = localStorage.getItem('bandup-auth');
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        accessToken = parsed?.state?.accessToken ?? null;
+      }
+    } catch {
+      accessToken = null;
+    }
 
-  if (authState?.accessToken) {
-    const headers = config.headers as Record<string, string> | undefined;
-    config.headers = {
-      ...(headers ?? {}),
-      Authorization: `Bearer ${authState.accessToken}`,
-    } as any;
-  }
+    console.log('🔍', config.method?.toUpperCase(), config.url, '| token:', !!accessToken);
 
-  return config;
-},
+    if (accessToken) {
+      config.headers.set('Authorization', `Bearer ${accessToken}`);
+    }
+    return config;
+  },
   (error) => Promise.reject(error)
 );
 
