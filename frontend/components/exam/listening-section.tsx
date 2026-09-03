@@ -1,136 +1,24 @@
 'use client';
 
 import * as React from 'react';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Play, Volume2 } from 'lucide-react';
+import { Button } from '@/components/ui/button';
 import AudioPlayer from '@/components/exam/audio-player';
 import { QuestionRenderer, type ExamQuestion } from '@/components/exam/question-renderers';
+import { speak, stopAllAudio } from '@/lib/audio-controller';
 
-export interface ListeningSectionProps {
-  audioAsset?: {
-    title?: string;
-    audio_file?: string;
-    playback_policy?: {
-      allow_replay?: boolean;
-      allow_seek?: boolean;
-    };
-  };
-  transcript?: string;
-  questions?: ExamQuestion[];
-  strictExamMode?: boolean;
-  isLocked?: boolean;
-}
+interface ListeningPart { order: number; title: string; audio_url: string | null; questions: ExamQuestion[] }
+export interface ListeningSectionProps { audioAsset?: { title?: string; audio_file?: string; transcript?: string; playback_policy?: { allow_replay?: boolean; allow_seek?: boolean } }; parts?: ListeningPart[]; transcript?: string; questions?: ExamQuestion[]; strictExamMode?: boolean; isLocked?: boolean }
 
-export const ListeningSection: React.FC<ListeningSectionProps> = ({
-  audioAsset,
-  transcript,
-  questions = [],
-  strictExamMode = false,
-  isLocked = false,
-}) => {
-  const groupedQuestions = React.useMemo(() => {
-    const groups = new Map<string, ExamQuestion[]>();
-
-    questions.forEach((question) => {
-      const groupKey = question.question_group?.id ?? question.question_group?.title ?? 'default';
-      const existingGroup = groups.get(groupKey) ?? [];
-      existingGroup.push(question);
-      groups.set(groupKey, existingGroup);
-    });
-
-    return Array.from(groups.entries()).map(([key, items]) => ({
-      id: key,
-      title: items[0]?.question_group?.title ?? 'Questions',
-      instruction: items[0]?.question_group?.instruction ?? '',
-      questions: items,
-    }));
-  }, [questions]);
-
-  const playbackPolicy = audioAsset?.playback_policy ?? {};
-  const playerAllowReplay = playbackPolicy.allow_replay ?? true;
-  const playerAllowSeek = playbackPolicy.allow_seek ?? true;
-
-  return (
-    <div className="space-y-6">
-      <AudioPlayer
-        src={audioAsset?.audio_file}
-        title={audioAsset?.title ?? 'Listening Audio'}
-        strictExamMode={strictExamMode}
-        allowReplay={playerAllowReplay}
-        allowSeek={playerAllowSeek}
-        isLocked={isLocked}
-      />
-
-      {transcript ? (
-        <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm leading-7 text-slate-700">
-          <p className="mb-2 text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Transcript</p>
-          <div className="whitespace-pre-wrap">{transcript}</div>
-        </div>
-      ) : null}
-
-      <div className="hidden lg:block">
-        <div className="space-y-4">
-          {groupedQuestions.length === 0 ? (
-            <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50 px-4 py-6 text-sm text-slate-500">
-              No listening questions available yet.
-            </div>
-          ) : (
-            groupedQuestions.map((group) => (
-              <div key={group.id} className="space-y-4">
-                <div className="rounded-2xl border border-slate-200 bg-white p-4">
-                  <h3 className="text-base font-semibold text-slate-900">{group.title}</h3>
-                  {group.instruction ? <p className="mt-1 text-sm text-slate-600">{group.instruction}</p> : null}
-                </div>
-
-                {group.questions.map((question, index) => (
-                  <QuestionRenderer key={question.id} question={question} index={index} isLocked={isLocked} />
-                ))}
-              </div>
-            ))
-          )}
-        </div>
-      </div>
-
-      <div className="lg:hidden">
-        <Tabs defaultValue="questions" className="w-full">
-          <TabsList className="grid w-full grid-cols-2">
-            <TabsTrigger value="questions">Questions</TabsTrigger>
-            <TabsTrigger value="transcript">Transcript</TabsTrigger>
-          </TabsList>
-          <TabsContent value="questions" className="mt-4 space-y-4">
-            {groupedQuestions.length === 0 ? (
-              <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50 px-4 py-6 text-sm text-slate-500">
-                No listening questions available yet.
-              </div>
-            ) : (
-              groupedQuestions.map((group) => (
-                <div key={group.id} className="space-y-4">
-                  <div className="rounded-2xl border border-slate-200 bg-white p-4">
-                    <h3 className="text-base font-semibold text-slate-900">{group.title}</h3>
-                    {group.instruction ? <p className="mt-1 text-sm text-slate-600">{group.instruction}</p> : null}
-                  </div>
-
-                  {group.questions.map((question, index) => (
-                    <QuestionRenderer key={question.id} question={question} index={index} isLocked={isLocked} />
-                  ))}
-                </div>
-              ))
-            )}
-          </TabsContent>
-          <TabsContent value="transcript" className="mt-4">
-            {transcript ? (
-              <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm leading-7 text-slate-700">
-                {transcript}
-              </div>
-            ) : (
-              <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50 px-4 py-6 text-sm text-slate-500">
-                No transcript provided.
-              </div>
-            )}
-          </TabsContent>
-        </Tabs>
-      </div>
-    </div>
-  );
+export const ListeningSection: React.FC<ListeningSectionProps> = ({ audioAsset, parts = [], transcript, questions = [], strictExamMode = false, isLocked = false }) => {
+  const groups = React.useMemo(() => { const map = new Map<string, ExamQuestion[]>(); questions.forEach((question) => { const key = question.question_group?.id ?? 'default'; map.set(key, [...(map.get(key) ?? []), question]); }); return Array.from(map.values()); }, [questions]);
+  const actualParts = parts.length ? parts : Array.from({ length: 4 }, (_, index) => ({ order: index + 1, title: `Listening Part ${index + 1}`, audio_url: null, questions: groups[index] ?? [] }));
+  React.useEffect(() => () => stopAllAudio(), []);
+  const playFallback = (part: ListeningPart) => { if (!isLocked) speak(part.title + '. ' + part.questions.map((question) => question.prompt).join('. ')); };
+  return <div className="space-y-6">
+    <div className="flex items-center gap-3"><Volume2 size={18} /><span className="font-medium">Listening test: four parts</span></div>
+    {actualParts.map((part) => <section key={part.order} className="border border-slate-200 bg-white p-4"><div className="mb-4 flex items-center justify-between gap-3"><div><p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Part {part.order} (Questions {(part.order - 1) * 10 + 1}–{part.order * 10})</p><h3 className="text-lg font-semibold text-slate-900">{part.title}</h3></div>{part.audio_url ? <AudioPlayer src={part.audio_url} title={`Part ${part.order}`} strictExamMode={strictExamMode} allowReplay={false} allowSeek={false} isLocked={isLocked} /> : <Button type="button" variant="outline" onClick={() => playFallback(part)} disabled={isLocked}><Play size={15} className="mr-2" /> Play Part {part.order}</Button>}</div><div className="space-y-4">{part.questions.map((question, index) => <QuestionRenderer key={question.id} question={question} index={(part.order - 1) * 10 + index} isLocked={isLocked} />)}</div></section>)}
+    {!parts.length && audioAsset ? <AudioPlayer src={audioAsset.audio_file} transcript={audioAsset.transcript ?? transcript} title={audioAsset.title ?? 'Listening Audio'} strictExamMode={strictExamMode} allowReplay={false} allowSeek={false} isLocked={isLocked} /> : null}
+  </div>;
 };
-
 export default ListeningSection;

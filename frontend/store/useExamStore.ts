@@ -11,12 +11,14 @@ export interface ExamPaperQuestion {
   order: number;
   type: string;
   prompt: string;
+  prompt_audio_file?: string | null;
+  prompt_audio_url?: string | null;
   instruction?: string;
   points?: number;
   options: Array<{ id: string; order: number; text: string }>;
   validation_rules: Record<string, unknown>;
   visual_json: Record<string, unknown> | null;
-  question_group: { id: string; title: string; instruction: string };
+  question_group: { id: string; title: string; instruction: string; order?: number; passage_id?: string | null };
 }
 
 export interface ExamPaperSection {
@@ -27,7 +29,10 @@ export interface ExamPaperSection {
   duration_seconds: number;
   instruction_text: string;
   passage: { id: string; title: string; body_text: string; source_note?: string } | null;
-  audio: { id: string; title: string; audio_file: string | null; duration_seconds: number; playback_policy: Record<string, boolean> } | null;
+  passages?: Array<{ id: string; title: string; body_text: string; source_note?: string }>;
+  audio: { id: string; title: string; audio_file: string | null; duration_seconds: number; playback_policy: Record<string, boolean>; transcript?: string } | null;
+  parts?: Array<{ order: number; title: string; audio_url: string | null; questions: ExamPaperQuestion[] }>;
+  speaking_audio_assets?: Array<{ title: string; audio_url: string | null }>;
   question_groups: Array<{ id: string; title: string; instruction: string; order: number; questions: ExamPaperQuestion[] }>;
 }
 
@@ -57,6 +62,7 @@ interface ExamState {
   setCurrentSection: (sectionName: string) => void;
   setCurrentQuestionIndex: (index: number) => void;
   setPaper: (paper: ExamPaper) => void;
+  setCompletedSections: (sectionIds: string[]) => void;
   setCurrentSectionIndex: (index: number) => void;
   completeSection: (sectionId: string) => void;
   setAnswer: (questionId: string, value: ExamAnswerValue) => void;
@@ -86,6 +92,7 @@ export const useExamStore = create<ExamState>((set) => ({
     const order = ['listening', 'reading', 'writing', 'speaking'];
     return (order.indexOf(left.section_type) - order.indexOf(right.section_type)) || left.order - right.order;
   }) }),
+  setCompletedSections: (sectionIds) => set({ completedSectionIds: sectionIds }),
   setCurrentSectionIndex: (index) => set({ currentSectionIndex: index, currentQuestionIndex: 0, currentSection: null }),
   completeSection: (sectionId) => set((state) => ({ completedSectionIds: state.completedSectionIds.includes(sectionId) ? state.completedSectionIds : [...state.completedSectionIds, sectionId] })),
   setAnswer: (questionId, value) =>

@@ -15,7 +15,7 @@ from django.conf import settings
 from apps.writing.models import WritingSubmission
 from apps.test_catalog.models import Test
 from apps.writing.models import WritingSubmission
-from .models import AnswerResponse, Attempt, ExamViolationEvent
+from .models import AnswerResponse, Attempt, AttemptSectionState, ExamViolationEvent
 from .serializers import (
     AnswerResponseSaveSerializer,
     AnswerResponseSerializer,
@@ -52,6 +52,15 @@ class AttemptViewSet(viewsets.ModelViewSet):
             'submitted_at': attempt.submitted_at,
             'remaining_seconds': None,
             'answers': AnswerResponseSerializer(attempt.answer_responses.all(), many=True).data,
+            'section_states': [
+                {
+                    'section': str(section_state.section_id),
+                    'state': section_state.state,
+                    'started_at': section_state.started_at,
+                    'completed_at': section_state.completed_at,
+                }
+                for section_state in attempt.section_states.all()
+            ],
         }
         if attempt.expires_at and attempt.started_at:
             data['remaining_seconds'] = int((attempt.expires_at - timezone.now()).total_seconds())
@@ -62,8 +71,10 @@ class AttemptViewSet(viewsets.ModelViewSet):
         attempt = get_object_or_404(self.get_queryset().select_related('test'), pk=pk)
         sections = []
         for section in attempt.test.sections.prefetch_related('passages', 'audio_assets', 'question_groups__questions').all():
-            passage = section.passages.first()
+            passages = section.passages.all()
             audio = section.audio_assets.filter(is_active=True).first()
+            audio_parts = section.audio_assets.filter(is_active=True, title__regex=r'^Listening Part [1-4]$').order_by('title')
+            question_groups = list(section.question_groups.all())
             sections.append({
                 'id': str(section.id),
                 'title': section.title,
@@ -72,30 +83,62 @@ class AttemptViewSet(viewsets.ModelViewSet):
                 'duration_seconds': section.duration_seconds,
                 'instruction_text': section.instruction_text,
                 'passage': {
-                    'id': str(passage.id),
-                    'title': passage.title,
-                    'body_text': passage.body_text,
-                    'source_note': passage.source_note,
-                } if passage else None,
+                    'id': str(passages[0].id),
+                    'title': passages[0].title,
+                    'body_text': passages[0].body_text,
+                    'source_note': passages[0].source_note,
+                } if passages else None,
+                'passages': [
+                    {'id': str(passage.id), 'title': passage.title, 'body_text': passage.body_text, 'source_note': passage.source_note}
+                    for passage in passages
+                ],
                 'audio': {
                     'id': str(audio.id),
                     'title': audio.title,
                     'audio_file': audio.audio_file.url if audio.audio_file else None,
                     'duration_seconds': audio.duration_seconds,
                     'playback_policy': audio.playback_policy,
+                    'transcript': audio.transcript,
                 } if audio else None,
+                'parts': [
+                    {
+                        'order': group.order,
+                        'title': group.title,
+                        'audio_url': next((part.audio_file.url for part in audio_parts if part.title == f'Listening Part {group.order}' and part.audio_file), None),
+                        'questions': [
+                            {
+                                'id': str(question.id), 'order': question.order, 'type': question.type,
+                                'prompt': question.prompt, 'instruction': question.instruction,
+                                'points': question.points, 'prompt_audio_url': question.prompt_audio_file.url if question.prompt_audio_file else None,
+                                'options': [{'id': str(option.id), 'order': option.order, 'text': option.text} for option in question.answer_options.all()] or [{'id': str(index), 'order': index, 'text': option} for index, option in enumerate(question.options_json or [], 1) if isinstance(option, str)],
+                                'validation_rules': question.validation_rules_json,
+                                'visual_json': question.options_json if isinstance(question.options_json, dict) else None,
+                                'question_group': {'id': str(group.id), 'title': group.title, 'instruction': group.instruction, 'order': group.order, 'passage_id': str(group.passage_id) if group.passage_id else None},
+                            }
+                            for question in group.questions.all()
+                        ],
+                    }
+                    for group in question_groups if section.section_type == 'listening'
+                ],
+                'speaking_audio_assets': [
+                    {'title': asset.title, 'audio_url': asset.audio_file.url if asset.audio_file else None}
+                    for asset in section.audio_assets.filter(is_active=True)
+                    if section.section_type == 'speaking' and asset.audio_file
+                ],
                 'question_groups': [
                     {
                         'id': str(group.id),
                         'title': group.title,
                         'instruction': group.instruction,
                         'order': group.order,
+                        'passage_id': str(group.passage_id) if group.passage_id else None,
                         'questions': [
                             {
                                 'id': str(question.id),
                                 'order': question.order,
                                 'type': question.type,
                                 'prompt': question.prompt,
+                                'prompt_audio_url': question.prompt_audio_file.url if question.prompt_audio_file else None,
                                 'instruction': question.instruction,
                                 'points': question.points,
                                 'options': [
@@ -108,6 +151,7 @@ class AttemptViewSet(viewsets.ModelViewSet):
                                 ],
                                 'validation_rules': question.validation_rules_json,
                                 'visual_json': question.options_json if isinstance(question.options_json, dict) else None,
+                                'question_group': {'id': str(group.id), 'title': group.title, 'instruction': group.instruction, 'order': group.order, 'passage_id': str(group.passage_id) if group.passage_id else None},
                             }
                             for question in group.questions.all()
                         ],
@@ -122,6 +166,41 @@ class AttemptViewSet(viewsets.ModelViewSet):
             'expires_at': attempt.expires_at,
             'sections': sections,
         })
+
+    @action(detail=True, methods=['post'], url_path=r'sections/(?P<section_id>[^/.]+)/start')
+    def start_section(self, request, pk=None, section_id=None):
+        attempt = get_object_or_404(self.get_queryset(), pk=pk)
+        section = get_object_or_404(attempt.test.sections, pk=section_id)
+        section_state, _ = attempt.section_states.update_or_create(
+            section=section,
+            defaults={
+                'state': AttemptSectionState.SectionState.ACTIVE,
+                'started_at': timezone.now(),
+                'remaining_seconds': section.duration_seconds,
+                'duration_seconds': section.duration_seconds,
+                'is_locked': False,
+            },
+        )
+        attempt.current_section = section
+        attempt.state = Attempt.State.IN_PROGRESS
+        attempt.save(update_fields=['current_section', 'state'])
+        return Response({'section': str(section_state.section_id), 'state': section_state.state})
+
+    @action(detail=True, methods=['post'], url_path=r'sections/(?P<section_id>[^/.]+)/complete')
+    def complete_section(self, request, pk=None, section_id=None):
+        attempt = get_object_or_404(self.get_queryset(), pk=pk)
+        section = get_object_or_404(attempt.test.sections, pk=section_id)
+        section_state, _ = attempt.section_states.update_or_create(
+            section=section,
+            defaults={
+                'state': AttemptSectionState.SectionState.COMPLETED,
+                'completed_at': timezone.now(),
+                'remaining_seconds': 0,
+                'duration_seconds': section.duration_seconds,
+                'is_locked': True,
+            },
+        )
+        return Response({'section': str(section_state.section_id), 'state': section_state.state})
 
     @action(detail=True, methods=['post'], url_path='autosave')
     def autosave(self, request, pk=None):
@@ -297,6 +376,7 @@ class AttemptResultAPIView(APIView):
             'weaknesses': ai_payload.get('weaknesses', submission.weaknesses or []),
             'improvement_suggestions': ai_payload.get('improvement_suggestions', submission.improvement_suggestions or []),
             'feedback': ai_payload.get('feedback', '') or getattr(submission, 'prompt', ''),
+            'criterion_feedback': ai_payload.get('criterion_feedback', {}),
         }
 
     def get(self, request, attempt_id):

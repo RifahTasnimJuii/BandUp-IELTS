@@ -1,12 +1,16 @@
 'use client';
 
 import { useQuery } from '@tanstack/react-query';
-import Link from 'next/link';
+import { useRouter } from 'next/navigation';
+import { useState } from 'react';
 import { Card, CardDescription, CardFooter, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { getTests, type TestCatalogItem } from '@/lib/api/tests';
+import { startAttempt } from '@/lib/api/exam';
 
 export default function TestsPageClient() {
+  const router = useRouter();
+  const [starting, setStarting] = useState<string | null>(null);
   const { data, isLoading, isError, error } = useQuery<TestCatalogItem[]>({
     queryKey: ['tests'],
     queryFn: getTests,
@@ -53,9 +57,7 @@ export default function TestsPageClient() {
                   <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold uppercase tracking-[0.25em] text-slate-700">
                     {test.module_type}
                   </span>
-                  <Button asChild size="sm" aria-label={`Start ${test.title}`}>
-                    <Link href={`/tests/${test.slug}`}>Start Test</Link>
-                  </Button>
+                  <Button size="sm" aria-label={`Start ${test.title}`} disabled={starting === test.id} onClick={async () => { setStarting(test.id); try { const response = await startAttempt({ test_id: test.id, mode: 'exam', client_timezone: Intl.DateTimeFormat().resolvedOptions().timeZone, locale: navigator.language, device_info: { platform: navigator.platform, userAgent: navigator.userAgent } }); router.push(`/exam/${response.attempt_id}`); } finally { setStarting(null); } }}>{starting === test.id ? 'Starting...' : 'Start Exam'}</Button>
                 </CardFooter>
               </Card>
             ))

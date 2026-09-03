@@ -53,7 +53,17 @@ export const getAttemptPaper = async (attemptId: string) => {
 
 export const getAttemptState = async (attemptId: string) => {
   const response = await api.get(`/attempts/${attemptId}/state/`);
-  return response.data as { expires_at: string; remaining_seconds: number | null; answers: Array<{ question: string; answer_text?: string; selected_options?: string[]; value_json?: Record<string, unknown>; is_flagged?: boolean }> };
+  return response.data as { expires_at: string; remaining_seconds: number | null; answers: Array<{ question: string; answer_text?: string; selected_options?: string[]; value_json?: Record<string, unknown>; is_flagged?: boolean }>; section_states?: Array<{ section: string; state: string }> };
+};
+
+export const startSection = async (attemptId: string, sectionId: string) => {
+  const response = await api.post(`/attempts/${attemptId}/sections/${sectionId}/start/`);
+  return response.data;
+};
+
+export const completeSection = async (attemptId: string, sectionId: string) => {
+  const response = await api.post(`/attempts/${attemptId}/sections/${sectionId}/complete/`);
+  return response.data;
 };
 
 export const autosaveAnswer = async (attemptId: string, questionId: string, answer: ExamAnswerValue, isFlagged = false) => {

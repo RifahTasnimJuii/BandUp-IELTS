@@ -1,23 +1,26 @@
 'use client';
 
 import * as React from 'react';
-import { Mic, MicOff, Square } from 'lucide-react';
+import { Mic, MicOff, Square, Volume2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useAuthStore } from '@/store/useAuthStore';
 import { saveSpeakingConsent, uploadSpeakingAudio } from '@/lib/api/exam';
 import { useExamStore } from '@/store/useExamStore';
+import { speak, stopAllAudio } from '@/lib/audio-controller';
 
 interface SpeakingPrompt {
   id: string;
   questionId?: string;
   part: string;
   prompt: string;
+  promptAudioFile?: string;
   durationSeconds?: number;
   preparationSeconds?: number;
 }
 
 interface SpeakingSectionProps {
   prompts?: SpeakingPrompt[];
+  examinerAudioAssets?: Array<{ title: string; audio_url: string | null }>;
   attemptId?: string;
   isLocked?: boolean;
 }
@@ -72,6 +75,7 @@ const useAudioRecorder = (options?: { onStop?: (blob: Blob, file: File) => void 
     }
 
     try {
+      stopAllAudio();
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       const recorder = new MediaRecorder(stream);
       mediaRecorderRef.current = recorder;
@@ -117,6 +121,7 @@ const useAudioRecorder = (options?: { onStop?: (blob: Blob, file: File) => void 
 
 export const SpeakingSection: React.FC<SpeakingSectionProps> = ({
   prompts = defaultPrompts,
+  examinerAudioAssets = [],
   attemptId,
   isLocked = false,
 }) => {
@@ -128,6 +133,9 @@ export const SpeakingSection: React.FC<SpeakingSectionProps> = ({
   const [status, setStatus] = React.useState<'idle' | 'preparing' | 'recording' | 'completed'>('idle');
   const [uploading, setUploading] = React.useState(false);
   const [uploadError, setUploadError] = React.useState<string | null>(null);
+  const [examinerSpeaking, setExaminerSpeaking] = React.useState(false);
+  const promptAudioRef = React.useRef<HTMLAudioElement | null>(null);
+  const greetingAudioRef = React.useRef<HTMLAudioElement | null>(null);
   const setAnswer = useExamStore((state) => state.setAnswer);
   const setUser = useAuthStore((state) => state.setUser);
   const activePrompt = prompts[currentPromptIndex] ?? prompts[0] ?? defaultPrompts[0];
@@ -142,13 +150,14 @@ export const SpeakingSection: React.FC<SpeakingSectionProps> = ({
       await uploadSpeakingAudio(attemptId, questionId, file);
       setAnswer(questionId, { answer_text: file.name });
       setStatus('completed');
+      if (currentPromptIndex < prompts.length - 1) window.setTimeout(() => setCurrentPromptIndex((index) => index + 1), 1000);
     } catch (error) {
       console.error('Speaking upload failed', error);
       setUploadError('Audio upload failed. Please try again.');
     } finally {
       setUploading(false);
     }
-  }, [attemptId, questionId, setAnswer]);
+  }, [attemptId, currentPromptIndex, prompts.length, questionId, setAnswer]);
 
   const { isRecording, permissionError, isSupported, startRecording, stopRecording } = useAudioRecorder({
     onStop: async (_, file) => {
@@ -208,6 +217,7 @@ export const SpeakingSection: React.FC<SpeakingSectionProps> = ({
     }
 
     const current = prompts[currentPromptIndex] ?? prompts[0] ?? defaultPrompts[0];
+    stopAllAudio();
     if (current.preparationSeconds && current.preparationSeconds > 0) {
       setStatus('preparing');
       setPreparationRemaining(current.preparationSeconds);
@@ -222,8 +232,8 @@ export const SpeakingSection: React.FC<SpeakingSectionProps> = ({
 
   const onConsentApprove = async () => {
     try {
-      const updatedUser = await saveSpeakingConsent();
-      setUser(updatedUser);
+      await saveSpeakingConsent();
+      setUser(user ? { ...user, speaking_audio_consent: true } : user);
       setConsentOpen(false);
       await beginSpeakingFlow(true);
     } catch (error) {
@@ -231,6 +241,28 @@ export const SpeakingSection: React.FC<SpeakingSectionProps> = ({
       setUploadError('Unable to save microphone consent. Please try again.');
     }
   };
+
+  React.useEffect(() => {
+    stopAllAudio();
+    const greeting = currentPromptIndex === 0 ? examinerAudioAssets.find((asset) => asset.title === 'speaking_greeting')?.audio_url : null;
+    if (greeting && greetingAudioRef.current) {
+      setExaminerSpeaking(true);
+      greetingAudioRef.current.currentTime = 0;
+      void greetingAudioRef.current.play().catch(() => setExaminerSpeaking(false));
+    } else if (activePrompt.promptAudioFile && promptAudioRef.current) {
+      promptAudioRef.current.currentTime = 0;
+      setExaminerSpeaking(true);
+      void promptAudioRef.current.play().catch(() => setExaminerSpeaking(false));
+    } else {
+      setExaminerSpeaking(true);
+      speak(activePrompt.prompt, () => setExaminerSpeaking(false));
+    }
+    return () => stopAllAudio();
+  }, [activePrompt.prompt, activePrompt.promptAudioFile, currentPromptIndex, examinerAudioAssets]);
+
+  React.useEffect(() => {
+    return () => stopAllAudio();
+  }, []);
 
   React.useEffect(() => {
     if (status === 'recording' && !isRecording) {
@@ -264,22 +296,16 @@ export const SpeakingSection: React.FC<SpeakingSectionProps> = ({
         </div>
 
         <p className="text-base leading-7 text-slate-700">{activePrompt.prompt}</p>
+        {activePrompt.promptAudioFile ? <><audio ref={greetingAudioRef} src={examinerAudioAssets.find((asset) => asset.title === 'speaking_greeting')?.audio_url ?? undefined} onEnded={() => { setExaminerSpeaking(false); if (promptAudioRef.current) { promptAudioRef.current.currentTime = 0; void promptAudioRef.current.play(); } }} preload="auto" className="hidden" /><audio ref={promptAudioRef} src={activePrompt.promptAudioFile} onEnded={() => setExaminerSpeaking(false)} preload="auto" className="hidden" /><Button type="button" variant="ghost" onClick={() => { if (promptAudioRef.current) { promptAudioRef.current.currentTime = 0; setExaminerSpeaking(true); void promptAudioRef.current.play(); } }} disabled={isLocked}><Volume2 size={16} className="mr-2" /> Replay question</Button></> : <Button type="button" variant="ghost" onClick={() => { setExaminerSpeaking(true); speak(activePrompt.prompt, () => setExaminerSpeaking(false)); }} disabled={isLocked}><Volume2 size={16} className="mr-2" /> Replay question</Button>}
       </div>
 
       <div className="flex flex-wrap items-center gap-3">
-        <Button
-          type="button"
-          variant="outline"
-          onClick={() => setCurrentPromptIndex((prev) => (prev - 1 + promptCount) % promptCount)}
-          disabled={promptCount <= 1 || isLocked}
-        >
-          Previous Prompt
-        </Button>
+        {examinerSpeaking ? <span className="text-sm font-medium text-sky-700">Examiner is speaking...</span> : null}
         <Button
           type="button"
           variant="outline"
           onClick={() => setCurrentPromptIndex((prev) => (prev + 1) % promptCount)}
-          disabled={promptCount <= 1 || isLocked}
+          disabled={promptCount <= 1 || isLocked || isRecording || status !== 'completed'}
         >
             Next Part
         </Button>
@@ -293,6 +319,7 @@ export const SpeakingSection: React.FC<SpeakingSectionProps> = ({
           {isRecording ? 'Recording...' : 'Start Recording'}
         </Button>
 
+        {isRecording ? <span className="inline-flex items-center gap-2 text-sm font-medium text-red-700"><span className="h-2.5 w-2.5 animate-pulse rounded-full bg-red-600" /> Recording {formatTimer((activePrompt.durationSeconds ?? 0) - recordingRemaining)} / {formatTimer(activePrompt.durationSeconds ?? 0)}</span> : null}
         <Button
           type="button"
           variant="outline"

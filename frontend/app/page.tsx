@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { AuthenticatedNavbar } from '@/components/AuthenticatedNavbar';
 import { ArrowRight, BarChart3, BrainCircuit, CheckCircle2, ChevronRight, ShieldCheck, Sparkles } from 'lucide-react';
 
 const features = [
@@ -27,8 +28,8 @@ const steps = [
 
 const faqs = [
   {
-    question: 'Is BandUp suitable for IELTS preparation?',
-    answer: 'Yes. BandUp is built around IELTS-style practices, section-based simulations, and AI feedback for writing and speaking.',
+    question: 'Is BandUp IELTS suitable for IELTS preparation?',
+    answer: 'Yes. BandUp IELTS is built around IELTS-style practice, section simulations, and feedback for writing and speaking.',
   },
   {
     question: 'Can I practice without paying?',
@@ -42,13 +43,14 @@ const faqs = [
 
 export default function HomePage() {
   return (
-    <main className="min-h-screen bg-slate-950 text-slate-50">
-      <section className="relative overflow-hidden border-b border-white/10 bg-[radial-gradient(circle_at_top,_rgba(56,189,248,0.2),_transparent_30%),linear-gradient(135deg,#020617_0%,#0f172a_40%,#111827_100%)]">
+    <main className="min-h-screen bg-slate-50 text-slate-900">
+      <AuthenticatedNavbar />
+      <section className="relative overflow-hidden border-b border-slate-200 bg-white">
         <div className="mx-auto max-w-7xl px-6 py-20 lg:px-8">
-          <nav className="mb-16 flex items-center justify-between">
+            <div className="hidden">
             <div className="flex items-center gap-3">
               <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-sky-500 font-bold text-slate-950">B</div>
-              <span className="text-lg font-semibold tracking-tight">BandUp</span>
+                <span className="text-lg font-semibold tracking-tight text-slate-900">BandUp IELTS</span>
             </div>
             <div className="hidden items-center gap-6 text-sm text-slate-300 md:flex">
               <Link href="#features" className="hover:text-white">Features</Link>
@@ -59,7 +61,7 @@ export default function HomePage() {
               <Link href="/login" className="rounded-full border border-white/10 px-4 py-2 text-sm text-slate-200 transition hover:border-sky-400 hover:text-white">Login</Link>
               <Link href="/register" className="rounded-full bg-sky-500 px-4 py-2 text-sm font-semibold text-slate-950 transition hover:bg-sky-400">Get started</Link>
             </div>
-          </nav>
+            </div>
 
           <div className="grid items-center gap-12 lg:grid-cols-[1.1fr_0.9fr]">
             <div>
@@ -67,18 +69,18 @@ export default function HomePage() {
                 <Sparkles className="h-3.5 w-3.5" />
                 IELTS prep, upgraded
               </div>
-              <h1 className="mt-6 max-w-xl text-5xl font-black tracking-tight text-white lg:text-6xl">
+              <h1 className="mt-6 max-w-xl text-5xl font-black tracking-tight text-slate-900 lg:text-6xl">
                 Practice smarter. Score higher.
               </h1>
               <p className="mt-6 max-w-xl text-lg leading-8 text-slate-300">
-                Master IELTS with realistic mock tests, AI-powered writing and speaking evaluation, and a clear plan to improve every band score.
+                Master IELTS with realistic mock tests, writing and speaking evaluation, and a clear plan to improve every band score.
               </p>
               <div className="mt-8 flex flex-col gap-4 sm:flex-row">
                 <Link href="/tests" aria-label="Start free mock test" className="inline-flex items-center justify-center gap-2 rounded-full bg-sky-500 px-6 py-3 text-base font-semibold text-slate-950 transition hover:bg-sky-400">
                   Start Free Mock Test
                   <ArrowRight className="h-4 w-4" />
                 </Link>
-                <Link href="/login" aria-label="Log in to BandUp" className="inline-flex items-center justify-center rounded-full border border-white/15 bg-white/5 px-6 py-3 text-base font-semibold text-white transition hover:border-white/30 hover:bg-white/10">
+                <Link href="/login" aria-label="Log in to BandUp IELTS" className="inline-flex items-center justify-center rounded-full border border-slate-300 bg-white px-6 py-3 text-base font-semibold text-slate-900 transition hover:border-sky-500 hover:bg-slate-50">
                   Login
                 </Link>
               </div>
@@ -155,7 +157,7 @@ export default function HomePage() {
         <div className="mx-auto flex max-w-7xl flex-col gap-6 px-6 py-8 text-sm text-slate-600 dark:text-slate-300 md:flex-row md:items-center md:justify-between lg:px-8">
           <div className="flex items-center gap-3">
             <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-sky-500 font-bold text-slate-950">B</div>
-            <span className="font-semibold text-slate-900 dark:text-white">BandUp</span>
+            <span className="font-semibold text-slate-900">BandUp IELTS</span>
           </div>
           <div className="flex flex-wrap items-center gap-5">
             <Link href="/tests" className="hover:text-slate-900 dark:hover:text-white">Tests</Link>

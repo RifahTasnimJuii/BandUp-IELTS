@@ -120,5 +120,5 @@ class AudioAssetAdmin(admin.ModelAdmin):
 
 
 admin.site.index_title = 'IELTS Content'
-admin.site.site_header = 'BandUp Administration'
-admin.site.site_title = 'BandUp Admin'
+admin.site.site_header = 'BandUp IELTS Administration'
+admin.site.site_title = 'BandUp IELTS Admin'

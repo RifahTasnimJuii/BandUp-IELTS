@@ -166,6 +166,12 @@ function FeedbackPanel({ label, feedback }: { label: string; feedback?: AttemptR
           )}
         </div>
 
+        {feedback.criterion_feedback && Object.keys(feedback.criterion_feedback).length > 0 ? (
+          <div className="overflow-x-auto rounded-2xl border border-slate-200 dark:border-slate-700">
+            <table className="w-full min-w-[620px] text-left text-sm"><thead className="bg-slate-50 dark:bg-slate-800"><tr><th className="px-4 py-3 font-semibold">Criterion</th><th className="px-4 py-3 font-semibold">Band</th><th className="px-4 py-3 font-semibold">Evidence</th></tr></thead><tbody>{criteria.map((item) => <tr key={item.label} className="border-t border-slate-200 dark:border-slate-700"><td className="px-4 py-3 font-medium">{item.label}</td><td className="px-4 py-3">{item.score.toFixed(1)}</td><td className="px-4 py-3 text-slate-600 dark:text-slate-300">{feedback.criterion_feedback?.[item.label.toLowerCase().replace(/ /g, '_')] ?? 'Rubric evidence recorded.'}</td></tr>)}</tbody></table>
+          </div>
+        ) : null}
+
         <div className="grid gap-4 xl:grid-cols-3">
           <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4 dark:border-emerald-500/25 dark:bg-emerald-500/10">
             <h4 className="mb-3 font-semibold text-emerald-800 dark:text-emerald-200">Strengths</h4>

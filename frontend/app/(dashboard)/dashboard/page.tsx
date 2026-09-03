@@ -30,7 +30,7 @@ export default function DashboardPage() {
         <div className="flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
           <div>
             <p className="text-sm font-semibold uppercase tracking-[0.3em] text-slate-500">Dashboard</p>
-            <h1 className="mt-4 text-3xl font-semibold text-slate-900">{hasAttempts ? `Welcome back, ${displayName}.` : 'Welcome to BandUp! 🎯'}</h1>
+            <h1 className="mt-4 text-3xl font-semibold text-slate-900">{hasAttempts ? `Welcome back, ${displayName}.` : 'Welcome to BandUp IELTS'}</h1>
             <p className="mt-2 text-sm text-slate-600">
               {hasAttempts ? 'Here is your latest practice progress.' : "You haven't taken any mock tests yet."}
             </p>

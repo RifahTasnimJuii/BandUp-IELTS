@@ -4,10 +4,11 @@ from decimal import Decimal
 from apps.grading.models import ScoringBandMapping
 
 
-def _normalize_text(value):
+def _normalize_text(value, case_sensitive=False):
     if value is None:
         return ''
-    return re.sub(r'\s+', ' ', str(value).strip().lower())
+    normalized = re.sub(r'\s+', ' ', str(value).strip())
+    return normalized if case_sensitive else normalized.lower()
 
 
 def calculate_question_score(question, answer_response):
@@ -52,11 +53,11 @@ def calculate_question_score(question, answer_response):
 
 
 def _match_correct_answer_rule(answer_text, rule):
-    normalized_answer = _normalize_text(answer_text)
-    accepted = [str(item).strip().lower() for item in (rule.accepted_answers or [])]
+    normalized_answer = _normalize_text(answer_text, rule.case_sensitive)
+    accepted = [_normalize_text(item, rule.case_sensitive) for item in (rule.accepted_answers or [])]
 
     if rule.rule_type == rule.RuleType.EXACT:
-        return normalized_answer == _normalize_text(rule.value.get('answer'))
+        return normalized_answer == _normalize_text(rule.value.get('answer'), rule.case_sensitive)
     if rule.rule_type == rule.RuleType.ACCEPTED_VARIANTS:
         return normalized_answer in accepted
     if rule.rule_type == rule.RuleType.CONTAINS:

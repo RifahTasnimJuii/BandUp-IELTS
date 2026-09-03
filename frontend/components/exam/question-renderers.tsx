@@ -6,7 +6,6 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useExamStore, type ExamAnswerValue } from '@/store/useExamStore';
 
 export type ExamQuestionType =
@@ -19,6 +18,7 @@ export type ExamQuestionType =
   | 'summary_completion'
   | 'matching_headings'
   | 'matching_items'
+  | 'matching_features'
   | 'short_answer'
   | 'writing_prompt'
   | 'speaking_prompt'
@@ -38,10 +38,13 @@ export interface ExamQuestion {
   options_json?: Array<string | Record<string, unknown>>;
   validation_rules_json?: Record<string, unknown>;
   visual_json?: Record<string, unknown> | null;
+  prompt_audio_url?: string | null;
   question_group?: {
     id?: string;
     title?: string;
     instruction?: string;
+    passage_id?: string | null;
+    order?: number;
   };
 }
 
@@ -288,7 +291,7 @@ export const TextAnswerQuestion: React.FC<QuestionRendererProps> = ({ question, 
       <div className="space-y-2">
         <Input
           value={currentValue}
-          placeholder="Type your answer here..."
+          placeholder={question.type === 'short_answer' || question.type === 'matching_headings' || question.type === 'matching_items' || question.type === 'matching_features' || question.type === 'map_label' ? 'e.g. A' : 'Type your answer here...'}
           maxLength={maxChars}
           disabled={isLocked}
           onChange={(event) => {
@@ -313,7 +316,6 @@ export const TextAnswerQuestion: React.FC<QuestionRendererProps> = ({ question, 
 export const MatchingQuestion: React.FC<QuestionRendererProps> = ({ question, index, isLocked = false }) => {
   const answerValue = useExamStore((state) => state.answers[question.id]);
   const setAnswer = useExamStore((state) => state.setAnswer);
-  const options = normalizeOptions(question.options_json);
   const currentValue = typeof answerValue?.answer_text === 'string' ? answerValue.answer_text : '';
 
   const handleClear = () => {
@@ -324,28 +326,7 @@ export const MatchingQuestion: React.FC<QuestionRendererProps> = ({ question, in
 
   return (
     <QuestionShell question={question} index={index} isLocked={isLocked} onClear={handleClear}>
-      <div className="space-y-3">
-        <Select
-          value={currentValue || undefined}
-          onValueChange={(value) => {
-            if (!isLocked) {
-              setAnswer(question.id, { answer_text: value });
-            }
-          }}
-          disabled={isLocked}
-        >
-          <SelectTrigger className="w-full">
-            <SelectValue placeholder="Select an option" />
-          </SelectTrigger>
-          <SelectContent>
-            {options.map((option) => (
-              <SelectItem key={option.value} value={option.value}>
-                {option.label}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
+      <Input value={currentValue} placeholder="e.g. A" disabled={isLocked} onChange={(event) => setAnswer(question.id, { answer_text: event.target.value })} />
     </QuestionShell>
   );
 };
@@ -369,10 +350,7 @@ export const MapLabelRenderer: React.FC<QuestionRendererProps> = ({ question, in
             {visual.north ? <text x="92" y="8" textAnchor="middle" className="fill-slate-700 text-[5px] font-bold dark:fill-slate-200">N</text> : null}
           </svg>
         </div>
-        <Select value={currentValue || undefined} onValueChange={(value) => setAnswer(question.id, { answer_text: value })} disabled={isLocked}>
-          <SelectTrigger><SelectValue placeholder="Select a letter" /></SelectTrigger>
-          <SelectContent>{'ABCDEFGH'.split('').map((letter) => <SelectItem key={letter} value={letter}>{letter}</SelectItem>)}</SelectContent>
-        </Select>
+        <Input value={currentValue} placeholder="e.g. A" onChange={(event) => setAnswer(question.id, { answer_text: event.target.value })} disabled={isLocked} />
       </div>
   </QuestionShell>
   );
@@ -394,6 +372,7 @@ export const QuestionRenderer: React.FC<QuestionRendererProps> = ({ question, in
       return <TextAnswerQuestion question={question} index={index} isLocked={isLocked} />;
     case 'matching_headings':
     case 'matching_items':
+    case 'matching_features':
       return <MatchingQuestion question={question} index={index} isLocked={isLocked} />;
     case 'map_label':
       return <MapLabelRenderer question={question} index={index} isLocked={isLocked} />;

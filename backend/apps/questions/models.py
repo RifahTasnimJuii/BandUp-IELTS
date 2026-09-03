@@ -40,6 +40,7 @@ class Question(UUIDModel, TimeStampedModel):
     question_group = models.ForeignKey(QuestionGroup, on_delete=models.CASCADE, related_name='questions')
     type = models.CharField(max_length=32, choices=QuestionType.choices)
     prompt = models.TextField()
+    prompt_audio_file = models.FileField(upload_to='tts/', null=True, blank=True)
     instruction = models.TextField(blank=True)
     order = models.PositiveIntegerField(default=0)
     points = models.DecimalField(max_digits=6, decimal_places=2, default=0)

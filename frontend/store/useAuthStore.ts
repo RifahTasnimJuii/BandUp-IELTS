@@ -6,6 +6,7 @@ export interface User {
   email: string;
   username: string;
   role: string;
+  speaking_audio_consent?: boolean;
 }
 
 interface AuthState {

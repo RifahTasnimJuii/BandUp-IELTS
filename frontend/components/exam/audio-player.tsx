@@ -3,9 +3,11 @@
 import * as React from 'react';
 import { Pause, Play, Volume2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { speak, stopAllAudio } from '@/lib/audio-controller';
 
 interface AudioPlayerProps {
   src?: string;
+  transcript?: string;
   title?: string;
   strictExamMode?: boolean;
   allowReplay?: boolean;
@@ -15,6 +17,7 @@ interface AudioPlayerProps {
 
 export const AudioPlayer: React.FC<AudioPlayerProps> = ({
   src,
+  transcript,
   title,
   strictExamMode = false,
   allowReplay = true,
@@ -26,8 +29,11 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({
   const [currentTime, setCurrentTime] = React.useState(0);
   const [duration, setDuration] = React.useState(0);
   const [hasEnded, setHasEnded] = React.useState(false);
+  const [audioFailed, setAudioFailed] = React.useState(false);
+  const [errorMessage, setErrorMessage] = React.useState<string | null>(null);
 
   const playbackLocked = strictExamMode && !allowReplay && hasEnded;
+  const usesSpeech = (!src || audioFailed) && Boolean(transcript) && typeof window !== 'undefined' && 'speechSynthesis' in window;
 
   React.useEffect(() => {
     const el = audioRef.current;
@@ -39,20 +45,40 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({
       setIsPlaying(false);
       setHasEnded(true);
     };
+    const handleError = () => { setAudioFailed(true); setErrorMessage(`Audio failed: ${src || 'no source'}`); };
 
     el.addEventListener('timeupdate', handleTimeUpdate);
     el.addEventListener('loadedmetadata', handleLoadedMetadata);
     el.addEventListener('ended', handleEnded);
+    el.addEventListener('error', handleError);
 
     return () => {
       el.removeEventListener('timeupdate', handleTimeUpdate);
       el.removeEventListener('loadedmetadata', handleLoadedMetadata);
       el.removeEventListener('ended', handleEnded);
+      el.removeEventListener('error', handleError);
     };
-  }, []);
+  }, [src]);
+
+  React.useEffect(() => {
+    if (isLocked) stopAllAudio();
+    return () => stopAllAudio();
+  }, [isLocked]);
 
   const togglePlayback = async () => {
-    if (!audioRef.current || isLocked || playbackLocked || !src) return;
+    if (isLocked || playbackLocked) return;
+
+    if (usesSpeech) {
+      if (isPlaying) {
+        window.speechSynthesis.pause();
+        setIsPlaying(false);
+      } else {
+        speak(transcript, () => { setIsPlaying(false); setHasEnded(true); });
+        setIsPlaying(true);
+      }
+      return;
+    }
+    if (!audioRef.current || !src) return;
 
     if (audioRef.current.paused) {
       await audioRef.current.play();
@@ -92,7 +118,7 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({
           variant="outline"
           size="sm"
           onClick={togglePlayback}
-          disabled={isLocked || playbackLocked || !src}
+          disabled={isLocked || playbackLocked || (!src && !usesSpeech)}
           className="shrink-0"
         >
           {isPlaying ? <Pause size={16} className="mr-2" /> : <Play size={16} className="mr-2" />}
@@ -104,8 +130,9 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({
             type="button"
             variant="ghost"
             size="sm"
-            disabled={isLocked || playbackLocked || !src}
+            disabled={isLocked || playbackLocked || (!src && !usesSpeech)}
             onClick={() => {
+              if (usesSpeech) { window.speechSynthesis.cancel(); setIsPlaying(false); setHasEnded(false); return; }
               if (!audioRef.current || !src) return;
               audioRef.current.currentTime = 0;
               setCurrentTime(0);
@@ -150,6 +177,7 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({
           Time&apos;s up - Audio locked
         </div>
       ) : null}
+      {errorMessage ? <div className="mt-3 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{errorMessage}</div> : null}
     </div>
   );
 };

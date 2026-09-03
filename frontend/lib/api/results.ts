@@ -25,6 +25,7 @@ export interface AttemptResult {
     weaknesses?: string[] | string;
     improvement_suggestions?: string[] | string;
     feedback?: string;
+    criterion_feedback?: Record<string, string>;
   } | null;
   speaking_feedback?: {
     status?: string;
@@ -34,6 +35,7 @@ export interface AttemptResult {
     weaknesses?: string[] | string;
     improvement_suggestions?: string[] | string;
     feedback?: string;
+    criterion_feedback?: Record<string, string>;
   } | null;
   status?: string;
 }

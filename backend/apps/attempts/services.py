@@ -83,21 +83,38 @@ def evaluate_writing_offline(submission):
     total_words = len(words)
     unique_ratio = len(set(words)) / total_words if total_words else 0
     sentences = [part.strip() for part in re.split(r'[.!?]+', submission.answer_text) if part.strip()]
+    sentence_lengths = [len(re.findall(r"[A-Za-z']+", sentence)) for sentence in sentences]
     average_sentence_length = total_words / len(sentences) if sentences else 0
+    variance = sum((length - average_sentence_length) ** 2 for length in sentence_lengths) / len(sentence_lengths) if sentence_lengths else 0
     minimum = 150 if submission.task_number == WritingSubmission.TaskNumber.TASK_1 else 250
-    length_score = 5.0 if total_words < minimum else 6.0
-    lexical = max(5.5, min(6.5, 6.0 + (0.5 if unique_ratio >= 0.55 else -0.5 if unique_ratio < 0.35 else 0)))
-    structure = max(5.5, min(6.5, 6.0 + (0.5 if len(sentences) >= 4 and 10 <= average_sentence_length <= 28 else -0.5)))
+    prompt_words = set(re.findall(r"[A-Za-z']+", submission.prompt.lower())) - {'describe', 'discuss', 'write', 'about', 'what', 'the', 'and', 'you'}
+    response_words = set(words)
+    prompt_coverage = len(prompt_words & response_words) / len(prompt_words) if prompt_words else 0
+    linking_words = {'however', 'furthermore', 'moreover', 'therefore', 'although', 'because', 'while', 'addition'}
+    link_count = len(response_words & linking_words)
+    punctuation_ratio = len(re.findall(r'[,;:!?]', submission.answer_text)) / max(total_words, 1)
+    task_score = 4.0 + min(5.0, (2.0 if total_words >= minimum else 0) + min(2.0, prompt_coverage * 2) + (1.0 if len(sentences) >= 4 else 0))
+    coherence = 4.0 + min(5.0, (2.0 if len(sentences) >= 4 else 0) + min(2.0, link_count * 0.5) + (1.0 if variance > 8 else 0))
+    lexical = max(4.0, min(9.0, 4.0 + unique_ratio * 6 + (0.5 if sum(len(word) for word in words) / max(total_words, 1) >= 5 else 0)))
+    grammar = 4.0 + min(5.0, (1.5 if len(sentences) >= 4 else 0) + (1.5 if variance > 8 else 0) + (1.0 if punctuation_ratio >= 0.03 else 0))
     criteria = {
-        'task_achievement': length_score,
-        'coherence_cohesion': structure,
+        'task_achievement': round(task_score * 2) / 2,
+        'coherence_cohesion': round(coherence * 2) / 2,
         'lexical_resource': lexical,
-        'grammatical_range': structure,
+        'grammatical_range': round(grammar * 2) / 2,
     }
     band = max(4.0, min(7.0, round(sum(criteria.values()) / len(criteria) * 2) / 2))
     submission.band_score = band
     submission.criteria_scores = criteria
-    submission.ai_feedback = {'feedback': 'Automated provisional estimate'}
+    submission.ai_feedback = {
+        'feedback': 'Offline rubric estimate based on task coverage, organisation, vocabulary variety, and sentence control.',
+        'criterion_feedback': {
+            'task_achievement': f'Response uses {total_words} words; prompt vocabulary coverage is {prompt_coverage:.0%}.',
+            'coherence_cohesion': f'{len(sentences)} sentences and {link_count} linking expressions were detected.',
+            'lexical_resource': f'Unique-word ratio is {unique_ratio:.0%}; average word length is {sum(map(len, words)) / max(total_words, 1):.1f}.',
+            'grammatical_range': f'Sentence-length variance is {variance:.1f}; punctuation usage is {punctuation_ratio:.0%} of words.',
+        },
+    }
     submission.evaluation_status = WritingSubmission.EvaluationStatus.COMPLETED
     submission.model_name = 'offline-heuristic'
     submission.save(update_fields=['band_score', 'criteria_scores', 'ai_feedback', 'evaluation_status', 'model_name'])

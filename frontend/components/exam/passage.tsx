@@ -18,7 +18,7 @@ export const Passage: React.FC<PassageProps> = ({
   const text = bodyText && bodyText.trim().length > 0 ? bodyText : 'No passage content available.';
 
   return (
-    <div className={`rounded-3xl border border-slate-200 bg-white p-5 shadow-sm ${className ?? ''}`}>
+    <div className={`border border-slate-200 bg-white p-5 shadow-sm ${className ?? ''}`}>
       <div className="mb-4 border-b border-slate-200 pb-3">
         <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Reading Passage</p>
         {title ? <h2 className="mt-2 text-xl font-semibold text-slate-900">{title}</h2> : null}
